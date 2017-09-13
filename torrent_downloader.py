@@ -132,7 +132,7 @@ def torrent_file_first_select(m):
 	userStep[cid] = 2 
     elif text == "From local file":
 	bot.send_message(cid, "Plese send me a file")
-    elif text = "exit":
+    elif text == "exit":
 	userStep[cid] = 0 
     else:
 	bot.send_message(cid, "Please make a choice!")
@@ -186,11 +186,16 @@ def torrent_file_from_user(m):
 	cid = m.chat.id
 	file_info = bot.get_file(m.document.file_id)
 	file_name = m.document.file_name
-	file_location = '/tbot/torrents/'+file_name
-	link = "https://api.telegram.org/file/bot"+TOKEN+"/"+file_name
-	urllib.urlretrieve (link, file_location)	
-	bot.send_message(cid, "Ok, file recived "+file_info.file_path)	
-
+	if(re.search('.*\.torrent', file_name)):
+	    file_location = '/tbot/torrents/'+file_info.file_path
+	    link = "https://api.telegram.org/file/bot"+TOKEN+"/"+file_info.file_path
+	    urllib.urlretrieve (link, file_location)	
+	    bot.send_message(cid, "Ok, file " + file_name + " recived ")	
+	    f = os.popen("transmission-show '" + file_location + "' | grep -v '/tbot/torrents/' ")
+            torrent_info = f.read()
+            bot.send_message(cid, "Torrent info: " + torrent_info)	
+	else:
+	    bot.send_message(cid, "Wrong file extension. Currently I can work only with .torrent files")
 # filter on a specific message
 @bot.message_handler(func=lambda message: message.text == "hi")
 def command_text_hi(m):
