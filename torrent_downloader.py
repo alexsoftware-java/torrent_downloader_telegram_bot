@@ -15,12 +15,11 @@ userStep = {}  # so they won't reset every time the bot restarts
 commands = {  # command description used in the "help" command
               'start': 'Get used to the bot',
               'help': 'Gives you information about the available commands',
-              'sendLongText': 'A test using the \'send_chat_action\' command',
               'downloadTorrent': 'To start proccess of downloading'
 }
 
-imageSelect = types.ReplyKeyboardMarkup(one_time_keyboard=True)  # create the image selection keyboard
-imageSelect.add('From link', 'From local file')
+howDownloadTorrentFileSelect = types.ReplyKeyboardMarkup(one_time_keyboard=True)  # create the image selection keyboard
+howDownloadTorrentFileSelect.add('From link', 'From local file', 'From magnet link')
 
 hideBoard = types.ReplyKeyboardRemove()  # if sent as reply_markup, will hide the keyboard
 
@@ -60,28 +59,25 @@ def command_start(m):
     if cid not in knownUsers:  # if user hasn't used the "/start" command yet:
         knownUsers.append(cid)  # save user id, so you could brodcast messages to all users of this bot later
         userStep[cid] = 0  # save user id and his current "command level", so he can use the "/getImage" command
-        bot.send_message(cid, "Hi and Welcome!")
+        bot.send_message(cid, "Hi and Welcome!",reply_markup=hideBoard)
         bot.send_message(cid, """
 
 	I'm able to download torrents for you and send files via telegram
 
 	Also I can make video smaller to faster download
 
-	Let's start!
-
 	""")
         command_help(m)  # show the new user the help page
     else:
-        bot.send_message(cid, "Hi, I already know you!")
+        bot.send_message(cid, "Hi, I already know you!",reply_markup=hideBoard)
  	bot.send_message(cid, """
 
         I'm able to download torrents for you and send files via telegram
 
         Also I can make video smaller to faster download
 
-        Let's start!
-
         """)
+	command_help(m) 
 
 
 # help page
@@ -95,27 +91,17 @@ def command_help(m):
     bot.send_message(cid, help_text)  # send the generated help page
 
 
-# chat_action example (not a good one...)
-@bot.message_handler(commands=['sendLongText'])
-def command_long_text(m):
-    cid = m.chat.id
-    bot.send_message(cid, "If you think so...")
-    bot.send_chat_action(cid, 'typing')  # show the bot "typing" (max. 5 secs)
-    time.sleep(3)
-    bot.send_message(cid, ".")
-
-
-# user can chose an image (multi-stage command example)
+# 
 @bot.message_handler(commands=['downloadTorrent'])
 def command_image(m):
     cid = m.chat.id
-    bot.send_message(cid, "Please send me torrent file which you want to download", reply_markup=imageSelect)  # show the keyboard
+    bot.send_message(cid, "Let's start. I'm able to download torrent file from link/meta or you can send it to me directly", reply_markup=howDownloadTorrentFileSelect)  # show the keyboard
     userStep[cid] = 1  # set the user to the next step (expecting a reply in the listener now)
 
 @bot.message_handler(func=lambda message:  get_user_step(message.chat.id) == 0)
 def return_to_zero(m):
     cid = m.chat.id
-    bot.send_message(cid, "Returned. Please send me torrent file which you want to download", reply_markup=imageSelect)  # show the keyboard
+    bot.send_message(cid, "Returned. Please make a choice", reply_markup=howDownloadTorrentFileSelect)  # show the keyboard
     userStep[cid] = 1  # set the user to the next step (expecting a reply in the listener now)
 
 # if the user has issued the "/downloadTorrent
@@ -125,29 +111,22 @@ def torrent_file_first_select(m):
     text = m.text
     # 
     bot.send_chat_action(cid, 'typing')
-    if text == "From link":  # 
-#        bot.send_photo(cid, open('1.jpg', 'rb'),
-#                       reply_markup=hideBoard)  # send file and hide keyboard, after image is sent
-	bot.send_message(cid, "Plese send me a link to direct torrent file download")
+    if text == "From link":  
+	bot.send_message(cid, "Plese send me link to direct torrent file download",reply_markup=hideBoard)
 	userStep[cid] = 2 
     elif text == "From local file":
-	bot.send_message(cid, "Plese send me a file")
+	bot.send_message(cid, "Plese send me torrent file")
+    elif text == "From magnet link":
+        bot.send_message(cid, "Plese send me torrent Magnet link\n for example: magnet:?xt=urn:btih:49ab498046c32d5eb0e6ea37548fbe8ac736a604 \n link SHOULD start from magnet:")
     elif text == "exit":
 	userStep[cid] = 0 
-    else:
-	bot.send_message(cid, "Please make a choice!")
-#	userStep[cid] = 0  # reset the users step back to 0
-
 
 #Download torrent file from link
 @bot.message_handler(func=lambda message: get_user_step(message.chat.id) == 2)
 def torrent_file_from_link(m):
     cid = m.chat.id
     link = m.text
-    #
     bot.send_chat_action(cid, 'typing')
-#        bot.send_photo(cid, open('1.jpg', 'rb'),
-#                       reply_markup=hideBoard)  # send file and hide keyboard, after image is sent
     matchLink = re.search('http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', link)	
     if (matchLink):
 	bot.send_message(cid, "Thanks\nI started to download torrent file from link: " + link)
@@ -157,7 +136,7 @@ def torrent_file_from_link(m):
 		time.sleep(1)
 		if (os.path.exists(file_name)):	
 	    	    time.sleep(1)	
-	            bot.send_message(cid, "Ok, downloaded")	
+	            bot.send_message(cid, "Ok, downloaded",reply_markup=hideBoard)	
     		else :
 		    bot.send_message(cid, "I expect some problems, please try again")	
  		    userStep[cid] = 1	
@@ -168,17 +147,18 @@ def torrent_file_from_link(m):
 		filesSelect.add('Yes, please', 'No, stop')
                 bot.send_message(cid, "Should I start download?",reply_markup=filesSelect)
 	else:
-		bot.send_message(cid, "It's not torrent file, please upload torrent file or use meta link ")
+		bot.send_message(cid, "It's not torrent file, please upload torrent file or use link/meta ")
 		userStep[cid] = 0
     
     elif( m.text == 'Yes, please' ):
-        bot.send_message(cid, "Ok, I start")
+        bot.send_message(cid, "Ok, I start",reply_markup=hideBoard)
+	downloader(m, file_name)
     elif (  m.text == 'No, stop') :
         bot.send_message(cid, "Ok, return back")
         userStep[cid] = 0
     elif (not matchLink) :
 	bot.send_message(cid, "I didn't recognise your link: " + link)	
-	bot.send_message(cid, "Pleas check format: https://rutracker.org/forum/dl.php?t=5423940 ")
+	bot.send_message(cid, "Please check format ")
 
 #Recieve torrent file
 @bot.message_handler(content_types=['document']) 
@@ -193,10 +173,20 @@ def torrent_file_from_user(m):
 	    bot.send_message(cid, "Ok, file " + file_name + " recived ")	
 	    f = os.popen("transmission-show '" + file_location + "' | grep -v '/tbot/torrents/' ")
             torrent_info = f.read()
-            bot.send_message(cid, "Torrent info: " + torrent_info)	
+            bot.send_message(cid, "Torrent info: " + torrent_info,reply_markup=hideBoard)
+	    downloader(m, file_location)	
 	else:
 	    bot.send_message(cid, "Wrong file extension. Currently I can work only with .torrent files")
-# filter on a specific message
+
+
+#Magnet link
+@bot.message_handler(regexp="^magnet:.*")
+def magnet_link(m):
+	cid = m.chat.id
+	link = m.text
+	bot.send_message(cid, "You send me magnet:" + link)
+	downloader(m, link)
+
 @bot.message_handler(func=lambda message: message.text == "hi")
 def command_text_hi(m):
     bot.send_message(m.chat.id, "hi")
@@ -207,5 +197,21 @@ def command_text_hi(m):
 def command_default(m):
     # this is the standard reply to a normal message
     bot.send_message(m.chat.id, "I don't understand \"" + m.text + "\"\nMaybe try the help page at /help")
+
+
+##########TORRENT DOWNLOAD############
+
+def downloader(m, link):
+	cid = m.chat.id
+	bot.send_message(cid, "Proccessing..."+link)
+	bot.send_chat_action(cid, 'typing')
+	
+	
+	
+#####################################
+
+
+
+
 
 bot.polling()
