@@ -198,16 +198,43 @@ def command_default(m):
     # this is the standard reply to a normal message
     bot.send_message(m.chat.id, "I don't understand \"" + m.text + "\"\nMaybe try the help page at /help")
 
-
 ##########TORRENT DOWNLOAD############
 
 def downloader(m, link):
-	cid = m.chat.id
-	bot.send_message(cid, "Proccessing..."+link)
-	bot.send_chat_action(cid, 'typing')
+	cidStr = str(m.chat.id)
 	
+	message = bot.send_message(cidStr, "Proccessing... "+link)
+#transmission-cli /tbot/torrents/documents/file_11.torrent -w /tbot/files/downloads/ >> /tbot/files/down_stats.txt 2>&1 &
+	if not os.path.exists("/tbot/files/downloads/" + cidStr):
+		os.popen("mkdir /tbot/files/downloads/" + cidStr)
+	else:
+		os.popen("rm -rf /tbot/files/downloads/" + cidStr+"/*") #DEBUG
+	log_file = "/tbot/files/down_stats_"+ cidStr +".txt"
+	if (os.path.exists(log_file)):
+	     os.popen("rm "+log_file)
+	#aria2c torrents/documents/file_22.torrent >> stat.txt &
+	os.popen("aria2c '" + link +"' -d /tbot/files/downloads/"+ cidStr +" >> " + log_file + " & ")  	
+	if (os.path.exists(log_file)):
+	     while True:
+		text_log = ""
+		load_info = ""
+		text_log = os.popen(" tail -n 20 "+ log_file+" | grep -E 'DL|(OK)|SEED|error' | tail -n 1 ")
+		load_info = text_log.read()
+		print (load_info)
+		time.sleep(6)
+		if(re.search('.*DL:*', load_info) or re.search('.*(OK)*', load_info)):
+		    print load_info
+		    bot.send_message(m.chat.id, load_info)
+		    break
+		elif(re.search('.*SEED.*', load_info)):
+		    bot.send_message(m.chat.id, "File downloaded")
+		    break	
+	else:
+	    print "Can't open log file"			
+#watch every 30 seconds and show info only if updates
+#other script to send info?
 	
-	
+		
 #####################################
 
 
