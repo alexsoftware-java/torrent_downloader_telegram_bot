@@ -9,16 +9,24 @@ import os.path
 
 TOKEN = '411001654:AAFG3y_C20jslSqKqUe0Yei0WNW7y55INfM'
 
+
+#folders to store files, make sure that they're exist
+download_folder = '/tbot/files/downloads/'
+torrent_files_folder = '/tbot/torrents/'
+#/tbot/torrents/documents needed too
+download_logs_folder = '/tbot/files/'
+
+
 knownUsers = []  # todo: save these in a file,
 userStep = {}  # so they won't reset every time the bot restarts
 
 commands = {  # command description used in the "help" command
               'start': 'Get used to the bot',
               'help': 'Gives you information about the available commands',
-              'downloadTorrent': 'To start proccess of downloading'
+              'downloadTorrent': 'Start downloading'
 }
 
-howDownloadTorrentFileSelect = types.ReplyKeyboardMarkup(one_time_keyboard=True)  # create the image selection keyboard
+howDownloadTorrentFileSelect = types.ReplyKeyboardMarkup(one_time_keyboard=True)  # create selection keyboard
 howDownloadTorrentFileSelect.add('From link', 'From local file', 'From magnet link')
 
 hideBoard = types.ReplyKeyboardRemove()  # if sent as reply_markup, will hide the keyboard
@@ -32,12 +40,13 @@ def get_user_step(uid):
         return userStep[uid]
     else:
         knownUsers.append(uid)
-        userStep[uid] = 0
-        print "New user detected, who hasn't used \"/start\" yet"
-#        return 0
+	if not uid == '161985295': #DEBUG 
+	    userStep[uid] = 0 
+            print "New user detected, who hasn't used \"/start\" yet"
+	    return 0
         return userStep[uid]
 
-# only used for console output now
+# only used for console output
 def listener(messages):
     """
     When new messages arrive TeleBot will call this function.
@@ -101,7 +110,7 @@ def command_image(m):
 @bot.message_handler(func=lambda message:  get_user_step(message.chat.id) == 0)
 def return_to_zero(m):
     cid = m.chat.id
-    bot.send_message(cid, "Returned. Please make a choice", reply_markup=howDownloadTorrentFileSelect)  # show the keyboard
+    bot.send_message(cid, "Welcome again. I'm able to download torrent file from link/meta or you can send it to me directly", reply_markup=howDownloadTorrentFileSelect)  # show the keyboard
     userStep[cid] = 1  # set the user to the next step (expecting a reply in the listener now)
 
 # if the user has issued the "/downloadTorrent
@@ -130,7 +139,7 @@ def torrent_file_from_link(m):
     matchLink = re.search('http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', link)	
     if (matchLink):
 	bot.send_message(cid, "Thanks\nI started to download torrent file from link: " + link)
-	file_name = "/tbot/torrents/" + link.split('/')[-1]
+	file_name = torrent_files_folder + link.split('/')[-1]
         if(re.search('.*\.torrent', file_name)):
   		urllib.urlretrieve (link, file_name)
 		time.sleep(1)
@@ -167,11 +176,11 @@ def torrent_file_from_user(m):
 	file_info = bot.get_file(m.document.file_id)
 	file_name = m.document.file_name
 	if(re.search('.*\.torrent', file_name)):
-	    file_location = '/tbot/torrents/'+file_info.file_path
+	    file_location = torrent_files_folder + file_info.file_path
 	    link = "https://api.telegram.org/file/bot"+TOKEN+"/"+file_info.file_path
 	    urllib.urlretrieve (link, file_location)	
 	    bot.send_message(cid, "Ok, file " + file_name + " recived ")	
-	    f = os.popen("transmission-show '" + file_location + "' | grep -v '/tbot/torrents/' ")
+	    f = os.popen("transmission-show '" + file_location + "' | grep -v '" + torrent_files_folder + "'")
             torrent_info = f.read()
             bot.send_message(cid, "Torrent info: " + torrent_info,reply_markup=hideBoard)
 	    downloader(m, file_location)	
@@ -199,45 +208,76 @@ def command_default(m):
     bot.send_message(m.chat.id, "I don't understand \"" + m.text + "\"\nMaybe try the help page at /help")
 
 ##########TORRENT DOWNLOAD############
-
+#todo add to thread
 def downloader(m, link):
-	cidStr = str(m.chat.id)
-	
-	message = bot.send_message(cidStr, "Proccessing... "+link)
-#transmission-cli /tbot/torrents/documents/file_11.torrent -w /tbot/files/downloads/ >> /tbot/files/down_stats.txt 2>&1 &
-	if not os.path.exists("/tbot/files/downloads/" + cidStr):
-		os.popen("mkdir /tbot/files/downloads/" + cidStr)
+	cid = str(m.chat.id)
+	bot.send_chat_action(cid, 'typing')
+
+	if not os.path.exists(download_folder + cid):
+		os.popen("mkdir" + download_folder + cid)
 	else:
-		os.popen("rm -rf /tbot/files/downloads/" + cidStr+"/*") #DEBUG
-	log_file = "/tbot/files/down_stats_"+ cidStr +".txt"
+		os.popen("rm -rf " + download_folder + cid+"/*") #DEBUG
+
+	log_file = download_logs_folder + "down_stats_"+ cid +".txt"
 	if (os.path.exists(log_file)):
-	     os.popen("rm "+log_file)
+	     os.popen("rm "+log_file) #DEBUG
+
 	#aria2c torrents/documents/file_22.torrent >> stat.txt &
-	os.popen("aria2c '" + link +"' -d /tbot/files/downloads/"+ cidStr +" >> " + log_file + " & ")  	
+	os.popen("aria2c '" + link +"' -d " + download_folder + cid +" >> " + log_file + " & ")
+        bot.send_chat_action(cid, 'typing')
+	time.sleep(1)
+	bot.send_message(cid, "Torrent downloading\nPlease wait few minutes")
+	bot.send_message(cid, "Info about download procces will send every minute")  	
 	if (os.path.exists(log_file)):
+	     i = 0
 	     while True:
 		text_log = ""
 		load_info = ""
-		text_log = os.popen(" tail -n 20 "+ log_file+" | grep -E 'DL|(OK)|SEED|error' | tail -n 1 ")
+		text_log = os.popen(" tail -n 100 "+ log_file+" | grep -E 'DL|(OK)|SEED' | tail -n 1 ")
 		load_info = text_log.read()
-		print (load_info)
-		time.sleep(6)
-		if(re.search('.*DL:*', load_info) or re.search('.*(OK)*', load_info)):
-		    print load_info
-		    bot.send_message(m.chat.id, load_info)
-		    break
-		elif(re.search('.*SEED.*', load_info)):
-		    bot.send_message(m.chat.id, "File downloaded")
-		    break	
+		if (len(load_info) > 4):
+			print (load_info)
+			i = i + 1
+			if(re.search('.*DL.*', load_info)):
+			    print load_info
+			    bot.send_message(cid, load_info)
+			    break
+			elif (re.search('.*(OK).*', load_info)):
+			    print load_info
+			    bot.send_message(cid, "Download complete")
+			    userStep[cid] = 4	
+			    send_files_to_user(m) #to store where user is			    
+			    break
+			elif(re.search('.*SEED.*', load_info)):
+			    bot.send_message(cid, "Downloaded")
+			    userStep[cid] = 4
+			    send_files_to_user(m)
+			    break
+			elif (i >= 6):
+		            i = 0
+		    	    bot.send_chat_action(cid, 'typing')
+		    	    bot.send_message(cid, "Files are comming...")
+			time.sleep(10)	
+		else:
+			time.sleep(10)#wainting for new info
 	else:
 	    print "Can't open log file"			
-#watch every 30 seconds and show info only if updates
+
+
+#watch every 10 seconds and show info only if updates
 #other script to send info?
 	
 		
 #####################################
 
 
+@bot.message_handler(func=lambda message: get_user_step(message.chat.id) == 4)
+def send_files_to_user(m):
+	cid = str(m.chat.id)
+	files_folder = download_folder + cid
+	print "Folder with files:" + files_folder	
+	
+	
 
 
 
