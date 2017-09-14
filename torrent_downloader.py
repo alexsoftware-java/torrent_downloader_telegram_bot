@@ -1,11 +1,11 @@
-import telebot
+import telebot 
 from telebot import types
 import time
 import re
 import urllib
 import os
 import os.path
- 
+import subprocess 
 
 TOKEN = '411001654:AAFG3y_C20jslSqKqUe0Yei0WNW7y55INfM'
 
@@ -40,11 +40,9 @@ def get_user_step(uid):
         return userStep[uid]
     else:
         knownUsers.append(uid)
-	if not uid == '161985295': #DEBUG 
-	    userStep[uid] = 0 
-            print "New user detected, who hasn't used \"/start\" yet"
-	    return 0
-        return userStep[uid]
+	userStep[uid] = 0 
+        print "New user detected, who hasn't used \"/start\" yet"
+	return 0
 
 # only used for console output
 def listener(messages):
@@ -200,13 +198,6 @@ def magnet_link(m):
 def command_text_hi(m):
     bot.send_message(m.chat.id, "hi")
 
-
-# default handler for every other text
-@bot.message_handler(func=lambda message: True, content_types=['text'])
-def command_default(m):
-    # this is the standard reply to a normal message
-    bot.send_message(m.chat.id, "I don't understand \"" + m.text + "\"\nMaybe try the help page at /help")
-
 ##########TORRENT DOWNLOAD############
 #todo add to thread
 def downloader(m, link):
@@ -215,20 +206,25 @@ def downloader(m, link):
 
 	if not os.path.exists(download_folder + cid):
 		os.popen("mkdir" + download_folder + cid)
-	else:
-		os.popen("rm -rf " + download_folder + cid+"/*") #DEBUG
-
 	log_file = download_logs_folder + "down_stats_"+ cid +".txt"
 	if (os.path.exists(log_file)):
 	     os.popen("rm "+log_file) #DEBUG
 
 	#aria2c torrents/documents/file_22.torrent >> stat.txt &
-	os.popen("aria2c '" + link +"' -d " + download_folder + cid +" >> " + log_file + " & ")
-        bot.send_chat_action(cid, 'typing')
-	time.sleep(1)
-	bot.send_message(cid, "Torrent downloading\nPlease wait few minutes")
-	bot.send_message(cid, "Info about download procces will send every minute")  	
-	if (os.path.exists(log_file)):
+	
+	if (os.path.exists(download_folder + cid)):
+		#already has download files
+		#Debug?	
+		send_files_to_user(m) 
+	else:
+		bot.send_message(cid, "Torrent downloading\nPlease wait few minutes")
+       		bot.send_message(cid, "Info about download procces will send every minute")
+	        os.popen("aria2c '" + link +"' -d " + download_folder + cid +" >> " + log_file + " & ")
+	        bot.send_chat_action(cid, 'typing')
+        time.sleep(1)
+
+
+	if (os.path.exists(log_file) and not os.path.exists(download_folder + cid)):
 	     i = 0
 	     while True:
 		text_log = ""
@@ -261,7 +257,7 @@ def downloader(m, link):
 		else:
 			time.sleep(10)#wainting for new info
 	else:
-	    print "Can't open log file"			
+	    print "Skip downloading"			
 
 
 #watch every 10 seconds and show info only if updates
@@ -271,14 +267,81 @@ def downloader(m, link):
 #####################################
 
 
+
 @bot.message_handler(func=lambda message: get_user_step(message.chat.id) == 4)
 def send_files_to_user(m):
-	cid = str(m.chat.id)
-	files_folder = download_folder + cid
-	print "Folder with files:" + files_folder	
-	
-	
+    cid = str(m.chat.id)
+    files_folder = download_folder + cid
+    print "Folder with files:" + files_folder	
+    if (os.path.exists(files_folder)):
+	files = os.listdir(files_folder)
+	files.sort()
+	print files	
+	i = 0
+	bot.send_message(cid, "Downloaded file(s):")
+	cmd = ['rm','/tbot/files/downloads/161985295/bl-Deuterium-amd64_20170429.iso.*']
+	subprocess.Popen(cmd).wait()
+	for f in files:
+	    file = str(f)
+	    path_to_file = files_folder + '/' + file	
+	    i = i+1
+	    iter = str(i)
+	    bot.send_message(cid, iter + ". "+file)
+#split -d -b 48M  files/downloads/161985295/bl-Deuterium-amd64_20170429.iso bl-Deuterium-amd64_20170429.iso.
+	    if (os.path.getsize(path_to_file) > 52428800): # > 50Mb 	
+        	cmd = ['split', '-d',  '-b' ,'48M' , path_to_file , path_to_file + '.' ]
+		subprocess.Popen(cmd).wait()
+#		cmd = ['rm', path_to_file]
+#		subprocess.Popen(cmd).wait()
+	bot.send_message(cid, "Files to send:",reply_markup=hideBoard)
+	files = os.listdir(files_folder)
+	files.sort()
+	filesToDownloadSelect = types.ReplyKeyboardMarkup(one_time_keyboard=False)
+	i = 0 
+	allFilesString = ""
+	allFilesArray = {}
+	filesToDownloadSelect.add('Recieve all')
+        for f in files:
+            file = str(f)
+	    iter = str(i)
+	    allFilesArray[i] = file
+	    allFilesString = allFilesString + "\n"+iter+". "+file	
+            filesToDownloadSelect.add(iter)
+	    i = i + 1
+        bot.send_message(cid, allFilesString, reply_markup=filesToDownloadSelect)
+        bot.send_message(cid, "Please select which files/pices you want to recieve")
+	userStep[m.chat.id] = 5
+    else:
+	bot.send_message(cid, "Sorry, but something goes wrong and files is not avaliable to send :(")
+    	bot.send_message(cid, "You can try again or later")	
+	userStep[m.chat.id] = 1
 
+
+#Send files to users
+@bot.message_handler(func=lambda message: get_user_step(message.chat.id) == 5)
+def send_file(m):
+    cid = str(m.chat.id)
+    files_folder = download_folder + cid
+    print "Send file from: "+ files_folder
+	if (os.path.exists(files_folder)):
+            files = os.listdir(files_folder)
+            files.sort()
+	    
+	    
+	    
+	    
+	else:
+            bot.send_message(cid, "Sorry, but something goes wrong and files is not avaliable to send :(")
+            bot.send_message(cid, "You can try again or later")
+            userStep[m.chat.id] = 1
+
+
+
+# default handler for every other text
+@bot.message_handler(func=lambda message: True, content_types=['text'])
+def command_default(m):
+    # this is the standard reply to a normal message
+    bot.send_message(m.chat.id, "I don't understand \"" + m.text + "\"\nMaybe try the help page at /help")
 
 
 bot.polling()
