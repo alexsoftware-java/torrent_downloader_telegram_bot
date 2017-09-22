@@ -163,22 +163,14 @@ def torrent_file_from_link(m):
             f = os.popen('transmission-show ' + file_name)
             torrent_info = f.read()
             bot.send_message(cid, "Torrent info: " + torrent_info)
-            filesSelect = types.ReplyKeyboardMarkup(one_time_keyboard=True)
-            filesSelect.add('Yes, please', 'No, stop')
-            bot.send_message(cid, "Should I start download?", reply_markup=filesSelect)
+            downloader(m, file_name)
         else:
-            bot.send_message(cid, "It's not torrent file, please upload torrent file or use link/meta ")
+            bot.send_message(cid, "This link doesn't contain .torrent, please upload torrent file or use other link")
             userStep[cid] = 0
-
-    elif m.text == 'Yes, please':
-        bot.send_message(cid, "Ok, I start", reply_markup=hideBoard)
-        downloader(m, file_name)
-    elif m.text == 'No, stop':
-        bot.send_message(cid, "Ok, return back")
-        userStep[cid] = 0
-    elif not match_link:
+    else:
         bot.send_message(cid, "I didn't recognise your link: " + link)
         bot.send_message(cid, "Please check format ")
+        userStep[cid] = 1
 
 
 # Recieve torrent file
