@@ -10,7 +10,7 @@ import sys
 reload(sys)
 sys.setdefaultencoding('utf8')
 
-TOKEN = '411001654:AAFG3y_C20jslSqKqUe0Yei0WNW7y55INfM'
+TOKEN = ''
 
 # folders to store files, make sure that they're exist
 download_folder = '/tbot/files/downloads/'
